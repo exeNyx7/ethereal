@@ -5,7 +5,17 @@
  * Auto-reconnects on disconnect.
  */
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000/ws';
+function getWsUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (api) {
+    // Derive WS URL from API URL: https → wss, http → ws
+    return api.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:') + '/ws';
+  }
+  return 'ws://localhost:4000/ws';
+}
+
+const WS_URL = getWsUrl();
 
 export type WSEvent = 'rumor:update' | 'rumor:new' | 'rumor:vote' | 'rumor:oppose';
 
