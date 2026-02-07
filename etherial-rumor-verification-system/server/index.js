@@ -160,7 +160,25 @@ async function sendCredentialsEmail(email, username, password) {
 // 1.  EXPRESS + HTTP SERVER
 // ═══════════════════════════════════════════════════
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+
+// CORS config - allow Vercel frontend + localhost dev
+const allowedOrigins = [
+  'https://ethereal-kappa-beige.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 const server = http.createServer(app);
 
