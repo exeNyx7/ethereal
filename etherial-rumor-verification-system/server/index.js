@@ -5,27 +5,27 @@
  * The frontend never touches Gun directly.
  *
  * ── Spec compliance ────────────────────────────────────────────────
- *  ✓ Blind auth with deterministic lookup key (SEA)
- *  ✓ One-email-one-account (email-level uniqueness hash)
- *  ✓ Dynamic communities — auto-created on first .edu signup
- *  ✓ Server-side domain↔publicKey validation on every write
- *  ✓ Hidden vote weights in API response while active
- *  ✓ Signature creation + verification (SEA.verify)
- *  ✓ √(karma) vote weighting
- *  ✓ Resolution formula  R = W_true / (W_true + W_false)
- *  ✓ Thresholds  R≥0.60 → FACT, R≤0.40 → FALSE, else INCONCLUSIVE
- *  ✓ Quorum  min 5 voters AND min 10 total weight
- *  ✓ Extended window (+24h on inconclusive, then UNVERIFIED)
- *  ✓ Trust-score freeze on resolution
- *  ✓ Asymmetric karma  +1 correct / −1.5 incorrect / ±2 poster
- *  ✓ Karma floor 0.1
- *  ✓ Opposition eligibility proportional to original W_true
- *  ✓ Opposition resolution via comparison to original W_true
- *  ✓ One opposition per fact (permanently locked on failure)
- *  ✓ Opposition karma  +3 win / −5 lose / −4 overturned / +1 upheld
- *  ✓ Ghost deletion with karma-reversal + cascade
- *  ✓ Community-scoped karma
- *  ✓ 30-second resolution scheduler
+ * ✓ Blind auth with deterministic lookup key (SEA)
+ * ✓ One-email-one-account (email-level uniqueness hash)
+ * ✓ Dynamic communities — auto-created on first .edu signup
+ * ✓ Server-side domain↔publicKey validation on every write
+ * ✓ Hidden vote weights in API response while active
+ * ✓ Signature creation + verification (SEA.verify)
+ * ✓ √(karma) vote weighting
+ * ✓ Resolution formula  R = W_true / (W_true + W_false)
+ * ✓ Thresholds  R≥0.60 → FACT, R≤0.40 → FALSE, else INCONCLUSIVE
+ * ✓ Quorum  min 5 voters AND min 10 total weight
+ * ✓ Extended window (+24h on inconclusive, then UNVERIFIED)
+ * ✓ Trust-score freeze on resolution
+ * ✓ Asymmetric karma  +1 correct / −1.5 incorrect / ±2 poster
+ * ✓ Karma floor 0.1
+ * ✓ Opposition eligibility proportional to original W_true
+ * ✓ Opposition resolution via comparison to original W_true
+ * ✓ One opposition per fact (permanently locked on failure)
+ * ✓ Opposition karma  +3 win / −5 lose / −4 overturned / +1 upheld
+ * ✓ Ghost deletion with karma-reversal + cascade
+ * ✓ Community-scoped karma
+ * ✓ 30-second resolution scheduler
  * ───────────────────────────────────────────────────────────────────
  */
 
@@ -164,9 +164,11 @@ const app = express();
 // CORS config - allow Vercel frontend + localhost dev
 const allowedOrigins = [
   'https://ethereal-kappa-beige.vercel.app',
+  'https://ethereal-production.up.railway.app',
   'http://localhost:3000',
   'http://localhost:3001',
 ];
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, etc)
@@ -174,6 +176,8 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || origin.includes('.vercel.app')) {
       return callback(null, true);
     }
+    // Optional: Allow all origins temporarily for debugging if needed:
+    // return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -1017,15 +1021,8 @@ app.get('/api/users/:domain/:publicKey', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // 13. START
 // ═══════════════════════════════════════════════════
-function checkPort(p) {
-  return new Promise(r => {
-    const t = net.createServer().once('error', () => r(false)).once('listening', function() { this.close(); r(true); }).listen(p);
-  });
-}
 
 async function start() {
-  if (!(await checkPort(PORT))) { console.log(`  Port ${PORT} busy`); process.exit(0); }
-
   await initMail();
 
   server.listen(PORT, '0.0.0.0', async () => {
