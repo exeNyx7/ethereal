@@ -1028,11 +1028,11 @@ async function start() {
 
   await initMail();
 
-  server.listen(PORT, async () => {
+  server.listen(PORT, '0.0.0.0', async () => {
     console.log('');
-    console.log('  ⚡ Etherial Backend on http://localhost:' + PORT);
-    console.log('  📡 REST  → http://localhost:' + PORT + '/api');
-    console.log('  🔌 WS    → ws://localhost:' + PORT + '/ws');
+    console.log('  ⚡ Etherial Backend on http://0.0.0.0:' + PORT);
+    console.log('  📡 REST  → http://0.0.0.0:' + PORT + '/api');
+    console.log('  🔌 WS    → ws://0.0.0.0:' + PORT + '/ws');
     console.log('  💾 Data  → ' + GUN_FILE);
 
     const comms = await listCommunities();
