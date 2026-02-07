@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useUser } from '@/lib/user-context';
-import { CommunitySidebar } from '@/components/community-sidebar';
-import { AuthModal } from '@/components/auth-modal';
-import { RumorCard } from '@/components/rumor-card';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useUser } from '@/lib/user-context-new';
+import { CommunitySidebar } from '@/components/community-sidebar-new';
+import { AuthModal } from '@/components/auth-modal-new';
+import { RumorCard } from '@/components/rumor-card-new';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,24 +14,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Zap } from 'lucide-react';
-import { db, getCommunityRumors, type Rumor } from '@/lib/gun-db';
-import { gun } from '@/lib/gun-db';
-import { KNOWN_COMMUNITIES } from '@/lib/gun-config';
-import { debugMonitor } from '@/lib/debug-monitor';
-import { signData } from '@/lib/auth-service';
-import { isVotingWindowOpen, validateClockSkew } from '@/lib/timestamp-utils';
-import { startResolutionScheduler, stopResolutionScheduler } from '@/lib/resolution-scheduler';
-import { filterGhosts } from '@/lib/ghost-system';
+import { Plus } from 'lucide-react';
+import { getRumors, postRumor, voteOnRumor, type Rumor } from '@/lib/api';
+import { etherialWS, type WSMessage } from '@/lib/ws';
 import { toast } from 'sonner';
+
+const KNOWN_COMMUNITIES: Record<string, string> = {
+  'nu.edu.pk': 'FAST NUCES',
+  'lums.edu.pk': 'LUMS',
+  'ict.edu.pk': 'ICT Islamabad',
+  'uet.edu.pk': 'UET',
+  'iba.edu.pk': 'IBA',
+  'seecs.edu.pk': 'SEECS NUST',
+  'fc.edu': 'Forman Christian College',
+  'giki.edu.pk': 'GIKI',
+};
 
 export default function Page() {
   const { user, logout } = useUser();
-  const [isAuthOpen, setIsAuthOpen] = useState(!user.isAuthenticated);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('nu.edu.pk');
   const [rumors, setRumors] = useState<Rumor[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
   const [newRumorText, setNewRumorText] = useState('');
   const [windowDuration, setWindowDuration] = useState<'12h' | '24h' | '2d' | '5d'>('24h');
@@ -39,248 +43,132 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'fact' | 'false' | 'opposed'>('all');
 
-  // Ref for debounce timer — avoids stale closure issues and survives re-renders
-  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Close auth modal automatically when user becomes authenticated
+  // Show auth modal if not logged in
   useEffect(() => {
-    if (user.isAuthenticated) {
-      setIsAuthOpen(false);
-    }
+    const timer = setTimeout(() => setIsAuthOpen(!user.isAuthenticated), 100);
+    return () => clearTimeout(timer);
   }, [user.isAuthenticated]);
 
-  // Load rumors when domain changes + real-time P2P sync
-  useEffect(() => {
-    // Start background resolution scheduler for this domain
-    startResolutionScheduler(currentDomain);
-
+  // Fetch rumors via REST API when domain changes
+  const loadRumors = useCallback(async (domain: string) => {
     setIsLoading(true);
-    const rumorsNode = getCommunityRumors(currentDomain);
-    const liveRumors: Record<string, Rumor> = {};
-    let initialLoadDone = false;
-
-    console.log('[Etherial] 🔄 Subscribing to rumors for domain:', currentDomain);
-
-    // Flush liveRumors → React state (debounced to batch rapid .on() fires)
-    function flushRumors() {
-      if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
-      updateTimerRef.current = setTimeout(() => {
-        const sorted = filterGhosts(Object.values(liveRumors)).sort((a, b) => b.createdAt - a.createdAt);
-        setRumors(sorted);
-        if (!initialLoadDone) {
-          initialLoadDone = true;
-          console.log('[Etherial] ✅ Initial load complete:', sorted.length, 'rumors');
-          setIsLoading(false);
-        }
-      }, initialLoadDone ? 150 : 500);  // 150ms debounce for live updates, 500ms for initial load
+    try {
+      const data = await getRumors(domain);
+      setRumors(data);
+    } catch (err) {
+      console.error('[Etherial] Failed to load rumors:', err);
+      setRumors([]);
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
 
-    // Use .map().on() — the canonical Gun pattern for listening to a collection.
-    // .map() iterates over every child node; .on() fires per-item on change.
-    const mapListener = rumorsNode.map().on((rumorData: any, rumorId: string) => {
-      if (!rumorData || !rumorId || rumorId === '_') return;
+  useEffect(() => {
+    loadRumors(currentDomain);
+  }, [currentDomain, loadRumors]);
 
-      // Gun returns metadata in _ property; check for valid rumor data
-      if (!rumorData.id && !rumorData.text) return;
-
-      console.log('[Etherial] 📥 Received rumor:', rumorId, 'status:', rumorData.status);
-
-      if (rumorData.status === 'ghost') {
-        delete liveRumors[rumorId];
-      } else {
-        liveRumors[rumorId] = rumorData as Rumor;
+  // Real-time updates via WebSocket
+  useEffect(() => {
+    const unsubscribe = etherialWS.subscribe((msg: WSMessage) => {
+      if (msg.event === 'rumor:new' && msg.data.domain === currentDomain) {
+        setRumors((prev) => {
+          // Don't add if already exists
+          if (prev.some((r) => r.id === msg.data.rumor.id)) return prev;
+          return [msg.data.rumor, ...prev];
+        });
       }
 
-      flushRumors();
+      if (msg.event === 'rumor:update' && msg.data.domain === currentDomain) {
+        setRumors((prev) =>
+          prev.map((r) =>
+            r.id === msg.data.rumorId ? { ...r, ...msg.data.rumor } : r
+          )
+        );
+      }
+
+      if (msg.event === 'rumor:vote' && msg.data.domain === currentDomain) {
+        // Optionally refresh the full list for vote count accuracy
+        // For now, vote feedback is handled locally in the card
+      }
+
+      if (msg.event === 'rumor:oppose' && msg.data.domain === currentDomain) {
+        // Reload to get fresh opposition data
+        loadRumors(currentDomain);
+      }
     });
 
-    // If no data exists at all, .map().on() never fires. Handle empty state.
-    const emptyTimer = setTimeout(() => {
-      if (!initialLoadDone) {
-        initialLoadDone = true;
-        console.log('[Etherial] ℹ️ No rumors found for', currentDomain);
-        setRumors([]);
-        setIsLoading(false);
-      }
-    }, 3000);
-
-    // Cleanup: unsubscribe .on() listeners when domain changes or component unmounts
     return () => {
-      stopResolutionScheduler();
-      clearTimeout(emptyTimer);
-      if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
-      rumorsNode.map().off();
-      rumorsNode.off();
+      unsubscribe();
     };
-  }, [currentDomain]);
+  }, [currentDomain, loadRumors]);
 
+  // Post rumor
   const handlePostRumor = async () => {
     if (!user.isAuthenticated || !user.publicKey) {
       setIsAuthOpen(true);
       return;
     }
-
     if (!newRumorText.trim()) return;
 
     setIsSubmitting(true);
     try {
-      const rumorId = `rumor_${user.publicKey}_${Date.now()}`;
-      const durationMs = {
-        '12h': 12 * 60 * 60 * 1000,
-        '24h': 24 * 60 * 60 * 1000,
-        '2d': 2 * 24 * 60 * 60 * 1000,
-        '5d': 5 * 24 * 60 * 60 * 1000,
-      }[windowDuration];
-
-      // Sign rumor content with private key (proves authorship)
-      const signedContent = user.pair
-        ? await signData({ text: newRumorText, id: rumorId, timestamp: Date.now() }, user.pair)
-        : null;
-
-      // Build rumor payload — NO arrays (Gun only supports primitives, objects, and null)
-      const newRumor: Record<string, any> = {
-        id: rumorId,
+      await postRumor({
         text: newRumorText,
-        posterPublicKey: user.publicKey,
         domain: currentDomain,
-        createdAt: Date.now(),
+        publicKey: user.publicKey,
         windowDuration,
-        windowClosesAt: Date.now() + durationMs,
-        status: 'active',
-        trust_score: 0,
-        weighted_true: 0,
-        weighted_false: 0,
-        total_voters: 0,
-        total_weight: 0,
-        extendedOnce: false,
-      };
-      if (signedContent) {
-        newRumor.signature = signedContent;
-      }
-
-      console.log('[Etherial] 📤 Posting rumor:', rumorId);
-
-      const rumorNode = getCommunityRumors(currentDomain).get(rumorId);
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.warn('[Etherial] ⚠️ Gun put timeout — resolving anyway');
-          resolve();
-        }, 5000);
-        rumorNode.put(newRumor, (ack: any) => {
-          clearTimeout(timeout);
-          if (ack.err) {
-            console.error('[Etherial] ❌ Gun put error:', ack.err);
-            reject(new Error(ack.err));
-          } else {
-            console.log('[Etherial] ✅ Rumor saved to Gun:', rumorId);
-            resolve();
-          }
-        });
+        pair: user.pair,
       });
-
-      // No optimistic update needed — the .map().on() listener picks up the
-      // local write instantly and debounces it into the state. Adding it here
-      // too would create a duplicate key in the React list.
       setNewRumorText('');
       setIsPostModalOpen(false);
       toast.success('Rumor posted anonymously!');
-    } catch (error) {
-      debugMonitor.error('Failed to post rumor', error);
-      toast.error('Failed to post rumor. Please try again.');
+      // WebSocket broadcast will add it to the list
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to post rumor.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Vote
   const handleVote = async (rumorId: string, value: 1 | -1) => {
     if (!user.isAuthenticated || !user.publicKey) {
       setIsAuthOpen(true);
       return;
     }
 
-    // Enforce voting window (spec: votes rejected after window closes)
-    const rumor = rumors.find(r => r.id === rumorId);
-    if (rumor && !isVotingWindowOpen(rumor.windowClosesAt)) {
-      debugMonitor.warn('Vote rejected — window closed', { rumorId });
+    const rumor = rumors.find((r) => r.id === rumorId);
+    if (rumor && rumor.windowClosesAt < Date.now()) {
       toast.error('Voting window has closed for this rumor.');
       return;
     }
 
-    // Clock skew validation (spec Section 5: Anti-Gaming)
-    if (rumor && !validateClockSkew(rumor.createdAt)) {
-      debugMonitor.warn('Vote rejected — clock skew detected', { rumorId });
-      toast.error('Clock synchronization error. Please check your system time.');
-      return;
-    }
-
     try {
-      // Deterministic vote ID — one vote per user per rumor (Gun overwrites duplicates)
-      const voteId = `vote_${rumorId}_${user.publicKey}`;
-      const votesNode = getCommunityRumors(currentDomain).get(rumorId).get('votes');
-
-      // Check for existing vote (spec: "No Vote Changing")
-      const existingVote = await new Promise<any>((resolve) => {
-        let resolved = false;
-        votesNode.get(voteId).once((data: any) => {
-          if (!resolved) { resolved = true; resolve(data); }
-        });
-        setTimeout(() => { if (!resolved) { resolved = true; resolve(null); } }, 2000);
-      });
-
-      if (existingVote?.voterId) {
-        debugMonitor.warn('Duplicate vote blocked', { rumorId, voter: user.publicKey });
-        toast.info('You have already voted on this rumor.');
-        return;
-      }
-
-      const weight = Math.sqrt(user.karma);
-      console.log('[Etherial] 🗳️ Voting on', rumorId, 'value:', value, 'weight:', weight.toFixed(3));
-
-      const votePayload = {
-        voterId: user.publicKey,
+      const result = await voteOnRumor({
         rumorId,
+        domain: currentDomain,
+        publicKey: user.publicKey,
         value,
-        weight,
-        timestamp: Date.now(),
-      };
-
-      // Sign vote with private key (prevents forgery)
-      const signedVote = user.pair
-        ? await signData(votePayload, user.pair)
-        : null;
-      
-      await new Promise<void>((resolve) => {
-        votesNode.get(voteId).put(
-          {
-            ...votePayload,
-            ...(signedVote ? { signature: signedVote } : {}),
-          },
-          (ack: any) => {
-            console.log('[Etherial] ✅ Vote saved, ack:', ack?.err || 'OK');
-            resolve();
-          }
-        );
+        pair: user.pair,
       });
-
-      toast.success(`Vote recorded! Your weight: √${user.karma.toFixed(2)} = ${weight.toFixed(3)}`);
-      debugMonitor.logVote(rumorId, value, weight);
-    } catch (error) {
-      debugMonitor.error('Failed to record vote', error);
-      toast.error('Failed to record vote. Please try again.');
+      toast.success(`Vote recorded! Your weight: ${result.weight.toFixed(3)}`);
+    } catch (error: any) {
+      if (error.message?.includes('Already voted')) {
+        toast.info('You have already voted on this rumor.');
+      } else {
+        toast.error(error.message || 'Failed to record vote.');
+      }
     }
   };
 
+  // Oppose
   const handleOppose = async (rumorId: string) => {
     if (!user.isAuthenticated) {
       setIsAuthOpen(true);
       return;
     }
-
-    // Opposition modal is now handled in RumorCard component
-    // This callback just refreshes the rumors list when opposition is created
-    setTimeout(() => {
-      setCurrentDomain(currentDomain); // Trigger reload
-    }, 1000);
+    // For now, reload to trigger opposition flow
+    setTimeout(() => loadRumors(currentDomain), 1000);
   };
 
   const handleLogout = () => {
@@ -290,17 +178,19 @@ export default function Page() {
 
   const communityName = KNOWN_COMMUNITIES[currentDomain] || currentDomain;
 
-  // Client-side search + filter (with deduplication safety net)
-  const filteredRumors = rumors.filter((r) => {
-    // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (!r.text.toLowerCase().includes(q)) return false;
-    }
-    // Status filter
-    if (activeFilter !== 'all' && r.status !== activeFilter) return false;
-    return true;
-  }).filter((r, i, arr) => arr.findIndex((x) => x.id === r.id) === i);  // Deduplicate by id
+  // Filter rumors
+  const filteredRumors = useMemo(() => {
+    return rumors
+      .filter((r) => {
+        if (r.domain && r.domain !== currentDomain) return false;
+        if (searchQuery.trim()) {
+          if (!r.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        }
+        if (activeFilter !== 'all' && r.status !== activeFilter) return false;
+        return true;
+      })
+      .filter((r, i, arr) => arr.findIndex((x) => x.id === r.id) === i);
+  }, [rumors, searchQuery, activeFilter, currentDomain]);
 
   return (
     <div className="flex h-screen bg-app-darker">
@@ -309,6 +199,7 @@ export default function Page() {
         currentDomain={currentDomain}
         onDomainChange={setCurrentDomain}
         onLogout={handleLogout}
+        rumorCount={rumors.length}
       />
 
       {/* Main Content */}
@@ -322,7 +213,9 @@ export default function Page() {
                 <span className="text-sm font-medium text-app-purple">Active Community</span>
               </div>
               <h1 className="text-6xl font-bold text-white tracking-tight">{communityName}</h1>
-              <p className="text-gray-400 text-lg">{rumors.length} rumors • {rumors.filter(r => r.status === 'active').length} active voting windows</p>
+              <p className="text-gray-400 text-lg">
+                {rumors.length} rumors • {rumors.filter((r) => r.status === 'active').length} active voting windows
+              </p>
             </div>
 
             {/* Search & Action Bar */}
@@ -333,7 +226,7 @@ export default function Page() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="smooth-input flex-1"
               />
-              {user.isAuthenticated && (
+              {user.isAuthenticated ? (
                 <Button
                   onClick={() => setIsPostModalOpen(true)}
                   className="bg-app-purple hover:bg-app-purple-dark text-white h-11 px-6 flex items-center justify-center gap-2 rounded-lg font-semibold btn-smooth"
@@ -341,8 +234,7 @@ export default function Page() {
                   <Plus className="w-5 h-5" />
                   <span>New Rumor</span>
                 </Button>
-              )}
-              {!user.isAuthenticated && (
+              ) : (
                 <Button
                   onClick={() => setIsAuthOpen(true)}
                   className="bg-app-purple hover:bg-app-purple-dark text-white h-11 px-8 rounded-lg font-semibold btn-smooth"
@@ -356,10 +248,10 @@ export default function Page() {
             <div className="flex overflow-x-auto gap-2 pb-4 border-b border-white/10 -mx-4 px-4 sm:mx-0 sm:px-0">
               {[
                 { label: 'All', filter: 'all' as const, count: rumors.length },
-                { label: 'Active', filter: 'active' as const, count: rumors.filter(r => r.status === 'active').length },
-                { label: 'Facts', filter: 'fact' as const, count: rumors.filter(r => r.status === 'fact').length },
-                { label: 'False', filter: 'false' as const, count: rumors.filter(r => r.status === 'false').length },
-                { label: 'Challenged', filter: 'opposed' as const, count: rumors.filter(r => r.status === 'opposed').length }
+                { label: 'Active', filter: 'active' as const, count: rumors.filter((r) => r.status === 'active').length },
+                { label: 'Facts', filter: 'fact' as const, count: rumors.filter((r) => r.status === 'fact').length },
+                { label: 'False', filter: 'false' as const, count: rumors.filter((r) => r.status === 'false').length },
+                { label: 'Challenged', filter: 'opposed' as const, count: rumors.filter((r) => r.status === 'opposed').length },
               ].map((tab) => (
                 <button
                   key={tab.label}
@@ -371,9 +263,13 @@ export default function Page() {
                   }`}
                 >
                   {tab.label}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
-                    activeFilter === tab.filter ? 'bg-app-purple/20 text-app-purple' : 'bg-white/5 text-gray-400'
-                  }`}>{tab.count}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${
+                      activeFilter === tab.filter ? 'bg-app-purple/20 text-app-purple' : 'bg-white/5 text-gray-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -382,7 +278,15 @@ export default function Page() {
             {isLoading ? (
               <div className="space-y-4 mt-8">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-40 glass rounded-xl animate-shimmer" style={{ backgroundSize: '200% 100%', backgroundImage: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%)' }} />
+                  <div
+                    key={i}
+                    className="h-40 glass rounded-xl animate-shimmer"
+                    style={{
+                      backgroundSize: '200% 100%',
+                      backgroundImage:
+                        'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%)',
+                    }}
+                  />
                 ))}
               </div>
             ) : filteredRumors.length === 0 ? (
@@ -404,12 +308,7 @@ export default function Page() {
               <div className="space-y-4 mt-6">
                 {filteredRumors.map((rumor, idx) => (
                   <div key={rumor.id} style={{ animationDelay: `${idx * 50}ms` }} className="animate-slide-up">
-                    <RumorCard
-                      rumor={rumor}
-                      onVote={handleVote}
-                      onOppose={handleOppose}
-                      disabled={!user.isAuthenticated}
-                    />
+                    <RumorCard rumor={rumor} onVote={handleVote} onOppose={handleOppose} disabled={!user.isAuthenticated} />
                   </div>
                 ))}
               </div>
@@ -455,7 +354,7 @@ export default function Page() {
                 {[
                   { dur: '12h', icon: '⚡', title: 'Temporary', subtitle: '12-24h' },
                   { dur: '2d', icon: '⏱️', title: 'Standard', subtitle: '1-2 days' },
-                  { dur: '5d', icon: '📅', title: 'Extended', subtitle: '3-5 days' }
+                  { dur: '5d', icon: '📅', title: 'Extended', subtitle: '3-5 days' },
                 ].map(({ dur, icon, title, subtitle }) => (
                   <button
                     key={dur}

@@ -2,7 +2,7 @@ import React from "react"
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { UserProvider } from '@/lib/user-context';
+import { UserProvider } from '@/lib/user-context-new';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-app-darker text-white`}>
+      <body className={`${inter.variable} font-sans antialiased bg-app-darker text-white`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

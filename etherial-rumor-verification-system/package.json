@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n relay,next -c blue,green \"node relay.js\" \"next dev --webpack\"",
-    "dev:next": "next dev --webpack",
-    "dev:relay": "node relay.js",
-    "relay": "node relay.js",
+    "dev": "concurrently -n api,next -c blue,green \"node server/index.js\" \"next dev\"",
+    "dev:next": "next dev",
+    "dev:api": "node server/index.js",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "test:db": "node stress-test.js"
+    "start": "concurrently -n api,next \"node server/index.js\" \"next start\"",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -47,7 +45,10 @@
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
     "gun": "^0.2020.12",
+    "ws": "^8.18.0",
     "input-otp": "1.4.1",
     "lucide-react": "^0.544.0",
     "next": "16.1.6",
