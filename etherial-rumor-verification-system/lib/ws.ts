@@ -45,7 +45,9 @@ class EtherialWS {
       this.ws.onopen = () => {
         this.isConnecting = false;
         this.reconnectDelay = 1000; // Reset backoff
-        console.log('[Etherial WS] Connected');
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          console.log('[Etherial WS] Connected');
+        }
       };
 
       this.ws.onmessage = (event) => {
@@ -61,12 +63,16 @@ class EtherialWS {
 
       this.ws.onclose = () => {
         this.isConnecting = false;
-        this.scheduleReconnect();
+        // Don't reconnect in production if WS not supported (e.g., Render free tier)
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          this.scheduleReconnect();
+        }
       };
 
       this.ws.onerror = () => {
         this.isConnecting = false;
         this.ws?.close();
+        // Silently fail - WS is optional, app works via polling
       };
     } catch (e) {
       this.isConnecting = false;
