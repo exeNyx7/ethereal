@@ -7,8 +7,9 @@
     "dev:next": "next dev",
     "dev:api": "node server/index.js",
     "build": "next build",
-    "start": "concurrently -n api,next \"node server/index.js\" \"next start\"",
+    "start": "node server/index.js",
     "start:next": "next start -p $PORT",
+    "start:api": "node server/index.js",
     "lint": "eslint ."
   },
   "dependencies": {
