@@ -15,25 +15,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
-import { getRumors, postRumor, voteOnRumor, type Rumor } from '@/lib/api';
+import { getRumors, getCommunities, postRumor, voteOnRumor, deleteAccount, type Rumor } from '@/lib/api';
 import { etherialWS, type WSMessage } from '@/lib/ws';
 import { toast } from 'sonner';
-
-const KNOWN_COMMUNITIES: Record<string, string> = {
-  'nu.edu.pk': 'FAST NUCES',
-  'lums.edu.pk': 'LUMS',
-  'ict.edu.pk': 'ICT Islamabad',
-  'uet.edu.pk': 'UET',
-  'iba.edu.pk': 'IBA',
-  'seecs.edu.pk': 'SEECS NUST',
-  'fc.edu': 'Forman Christian College',
-  'giki.edu.pk': 'GIKI',
-};
 
 export default function Page() {
   const { user, logout } = useUser();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [currentDomain, setCurrentDomain] = useState('nu.edu.pk');
+  const [currentDomain, setCurrentDomain] = useState('');
+  const [communities, setCommunities] = useState<{domain:string;name:string;rumorCount:number}[]>([]);
   const [rumors, setRumors] = useState<Rumor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPostModalOpen, setIsPostModalOpen] = useState(false);
@@ -48,6 +38,20 @@ export default function Page() {
     const timer = setTimeout(() => setIsAuthOpen(!user.isAuthenticated), 100);
     return () => clearTimeout(timer);
   }, [user.isAuthenticated]);
+
+  // Default to user's own domain on login
+  useEffect(() => {
+    if (user.isAuthenticated && user.domain && !currentDomain) {
+      setCurrentDomain(user.domain);
+    }
+  }, [user.isAuthenticated, user.domain, currentDomain]);
+
+  // Fetch communities list from API
+  useEffect(() => {
+    let c = false;
+    getCommunities().then((d) => { if (!c) { setCommunities(d); if (!currentDomain && d.length) setCurrentDomain(d[0].domain); } }).catch(() => {});
+    return () => { c = true; };
+  }, [currentDomain]);
 
   // Fetch rumors via REST API when domain changes
   const loadRumors = useCallback(async (domain: string) => {
@@ -176,7 +180,24 @@ export default function Page() {
     setIsAuthOpen(true);
   };
 
-  const communityName = KNOWN_COMMUNITIES[currentDomain] || currentDomain;
+  const handleDeleteAccount = () => {
+    // Show a prompt for username + password to confirm deletion
+    const username = prompt('Enter your username to confirm deletion:');
+    if (!username) return;
+    const password = prompt('Enter your password to confirm:');
+    if (!password) return;
+    deleteAccount(username, password)
+      .then(() => {
+        toast.success('Account deleted successfully');
+        logout();
+        setIsAuthOpen(true);
+      })
+      .catch((err) => {
+        toast.error(err.message || 'Failed to delete account');
+      });
+  };
+
+  const communityName = currentDomain;
 
   // Filter rumors
   const filteredRumors = useMemo(() => {
@@ -199,6 +220,7 @@ export default function Page() {
         currentDomain={currentDomain}
         onDomainChange={setCurrentDomain}
         onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
         rumorCount={rumors.length}
       />
 

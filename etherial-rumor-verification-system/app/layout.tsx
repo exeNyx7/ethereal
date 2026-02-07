@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'ethereal - Campus Truth Network',
+  title: 'Ethereal - Campus Truth Network',
   description: 'Decentralized P2P campus rumor verification system',
   generator: 'v0.app',
 };

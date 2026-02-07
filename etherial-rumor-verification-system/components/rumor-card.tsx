@@ -43,9 +43,10 @@ export function RumorCard({
 
   const canWrite = user.isAuthenticated && user.domain === rumor.domain;
   const isResolved = rumor.status === 'fact' || rumor.status === 'false' || rumor.status === 'unverified' || rumor.status === 'ghost';
+  const isOwnRumor = user.isAuthenticated && user.publicKey === rumor.posterPublicKey;
 
   const handleVote = (value: 1 | -1) => {
-    if (disabled || !canWrite || isResolved || hasVoted) return;
+    if (disabled || !canWrite || isResolved || hasVoted || isOwnRumor) return;
 
     onVote?.(rumor.id, value);
     setHasVoted(true);
@@ -128,9 +129,12 @@ export function RumorCard({
         {/* Vote Buttons */}
         {rumor.status === 'active' || rumor.status === 'opposed' ? (
           <div className="grid grid-cols-2 gap-3">
+            {isOwnRumor && (
+              <p className="col-span-2 text-center text-sm text-muted-foreground">You cannot vote on your own rumor</p>
+            )}
             <Button
               onClick={() => handleVote(1)}
-              disabled={disabled || !canWrite || hasVoted}
+              disabled={disabled || !canWrite || hasVoted || isOwnRumor}
               className={`flex items-center justify-center gap-2 font-bold h-11 rounded-lg btn-smooth transition-all duration-300 ${
                 userVote === 1 
                   ? 'bg-app-accent hover:bg-green-500 text-black shadow-lg shadow-green-500/20' 
@@ -142,7 +146,7 @@ export function RumorCard({
             </Button>
             <Button
               onClick={() => handleVote(-1)}
-              disabled={disabled || !canWrite || hasVoted}
+              disabled={disabled || !canWrite || hasVoted || isOwnRumor}
               className={`flex items-center justify-center gap-2 font-bold h-11 rounded-lg btn-smooth transition-all duration-300 ${
                 userVote === -1 
                   ? 'bg-app-danger hover:bg-red-500 text-white shadow-lg shadow-red-500/20' 

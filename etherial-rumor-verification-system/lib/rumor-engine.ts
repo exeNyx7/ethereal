@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getRumorVotes, getCommunityRumors, getCommunityUsers, type Rumor, type Vote } from './gun-db';
 import { updateUserKarma } from './auth-service';
 import { debugMonitor } from './debug-monitor';

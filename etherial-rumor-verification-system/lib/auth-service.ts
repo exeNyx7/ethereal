@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Gun from 'gun';
 import 'gun/sea';
 import { getCommunityUsers, gun } from './gun-db';

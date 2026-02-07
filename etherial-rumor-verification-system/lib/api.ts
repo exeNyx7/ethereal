@@ -42,6 +42,10 @@ export interface AuthResponse {
   pair: any;
 }
 
+export interface RegisterResponse extends AuthResponse {
+  message: string;
+}
+
 export interface UserData {
   publicKey: string;
   domain: string;
@@ -65,11 +69,48 @@ export async function getHealth() {
   return apiFetch<{ status: string; uptime: number; wsClients: number }>('/api/health');
 }
 
-/** Login / Register (blind auth) */
-export async function login(email: string, passphrase: string): Promise<AuthResponse> {
+/** Send OTP to email for registration */
+export async function sendOTP(email: string): Promise<{ message: string }> {
+  return apiFetch('/api/auth/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Register — email + OTP → returns generated username + password */
+export async function register(email: string, otp: string): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  });
+}
+
+/** Login with username + password */
+export async function login(username: string, password: string): Promise<AuthResponse> {
   return apiFetch<AuthResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, passphrase }),
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+/** Change credentials — update username and/or password */
+export async function changeCredentials(params: {
+  currentUsername: string;
+  currentPassword: string;
+  newUsername?: string;
+  newPassword?: string;
+}): Promise<{ success: boolean; message: string; username: string }> {
+  return apiFetch('/api/auth/change-credentials', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+/** Delete account — requires username + password */
+export async function deleteAccount(username: string, password: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/auth/delete', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
   });
 }
 
@@ -123,6 +164,14 @@ export async function opposeRumor(params: {
   return apiFetch(`/api/rumors/${encodeURIComponent(params.rumorId)}/oppose`, {
     method: 'POST',
     body: JSON.stringify(params),
+  });
+}
+
+/** Ghost a rumor (soft-delete with karma reversal) */
+export async function ghostRumor(rumorId: string, domain: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/rumors/${encodeURIComponent(rumorId)}/ghost`, {
+    method: 'POST',
+    body: JSON.stringify({ domain }),
   });
 }
 

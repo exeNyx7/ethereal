@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { login as apiLogin, getUser, type AuthResponse } from './api';
+import { login as apiLogin, register as apiRegister, getUser, type AuthResponse, type RegisterResponse } from './api';
 
 export interface UserState {
   publicKey: string | null;
@@ -15,7 +15,8 @@ export interface UserState {
 
 interface UserContextType {
   user: UserState;
-  login: (email: string, passphrase: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  register: (email: string, otp: string) => Promise<RegisterResponse>;
   logout: () => void;
   refreshKarma: () => Promise<void>;
 }
@@ -51,10 +52,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, passphrase: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     setUser((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
-      const data: AuthResponse = await apiLogin(email, passphrase);
+      const data: AuthResponse = await apiLogin(username, password);
 
       const newUser: UserState = {
         publicKey: data.publicKey,
@@ -78,6 +79,41 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         isLoading: false,
         error: error.message || 'Auth failed',
+        isAuthenticated: false,
+      }));
+      throw error;
+    }
+  }, []);
+
+  const registerUser = useCallback(async (email: string, otp: string): Promise<RegisterResponse> => {
+    setUser((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const data: RegisterResponse = await apiRegister(email, otp);
+
+      const newUser: UserState = {
+        publicKey: data.publicKey,
+        domain: data.domain,
+        karma: data.karma,
+        pair: data.pair,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      };
+      setUser(newUser);
+
+      sessionStorage.setItem('etherial_user', JSON.stringify({
+        publicKey: data.publicKey,
+        domain: data.domain,
+        karma: data.karma,
+        pair: data.pair,
+      }));
+
+      return data;
+    } catch (error: any) {
+      setUser((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: error.message || 'Registration failed',
         isAuthenticated: false,
       }));
       throw error;
@@ -113,7 +149,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [user.publicKey, user.domain]);
 
   return (
-    <UserContext.Provider value={{ user, login, logout, refreshKarma }}>
+    <UserContext.Provider value={{ user, login, register: registerUser, logout, refreshKarma }}>
       {children}
     </UserContext.Provider>
   );
