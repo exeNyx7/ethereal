@@ -67,7 +67,7 @@ The system enables university communities to **collectively determine truth** th
 
 Campus communities lack a trustworthy, anonymous platform for sharing and verifying rumors or news:
 
-![alt text](image.png)
+![The Problem](docs/images/image.png)
 
 ---
 
@@ -101,23 +101,23 @@ Ethereal addresses every one of these problems through a combination of:
 
 ### High-Level System Architecture
 
-![alt text](image-1.png)
+![System Architecture](docs/images/image-1.png)
 
 ### Data Flow — Posting & Voting on a Rumor
 
-![alt text](image-2.png)
+![Data Flow Diagram](docs/images/image-2.png)
 
 ### Rumor Lifecycle State Machine
 
-![alt text](image-3.png)
+![Rumor Lifecycle](docs/images/image-3.png)
 
 ### GunDB Data Model
 
-![alt text](image-4.png)
+![Data Model](docs/images/image-4.png)
 
 ### Domain Community Isolation
 
-![alt text](image-5.png)
+![Community Isolation](docs/images/image-5.png)
 ---
 
 ## ⚙ How It Works
@@ -169,7 +169,7 @@ When voting window closes:
 
 ### 4. Karma Economy
 
-![alt text](image-6.png)
+![Karma Economy](docs/images/image-6.png)
 
 ### 5. Opposition System
 
