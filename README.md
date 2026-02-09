@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
 </p>
 
-<h1 align="center">ETHERIAL</h1>
+<h1 align="center">ETHEREAL</h1>
 
 <p align="center">
   <strong>Decentralized Anonymous Campus Rumor Verification System</strong>
@@ -47,7 +47,7 @@
 
 ## 🎯 About the Project
 
-**Etherial** was initially built as a solution for **NUST - Olympiad 26** — a university hackathon at NUST challenging teams to build a decentralized, anonymous campus rumor verification platform that can resist manipulation and protect user privacy. Our team **FADA** developed this system to address the problem.
+**Ethereal** was initially built as a solution for **NUST - Olympiad 26** — a university hackathon at NUST challenging teams to build a decentralized, anonymous campus rumor verification platform that can resist manipulation and protect user privacy. Our team **FADA** developed this system to address the problem.
 
 The system enables university communities to **collectively determine truth** through reputation-weighted voting, blind consensus, and cryptographic anonymity — all without a central authority deciding what is "true."
 
@@ -73,9 +73,9 @@ Campus communities lack a trustworthy, anonymous platform for sharing and verify
 
 ## 💡 The Solution
 
-Etherial addresses every one of these problems through a combination of:
+Ethereal addresses every one of these problems through a combination of:
 
-| Problem | Etherial's Solution |
+| Problem | Ethereal's Solution |
 |---------|-------------------|
 | **Central Control** | Fully P2P architecture — no server decides truth |
 | **Identity Exposure** | Blind authentication — email never stored, only cryptographic keys |
@@ -486,7 +486,7 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  <strong>Etherial</strong> — Where truth isn't declared. It's earned.
+  <strong>Ethereal</strong> — Where truth isn't declared. It's earned.
 </p>
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * ═══════════════════════════════════════════════════════════════════
- *  Etherial — Functional Scenario Test Suite
+ *  Ethereal — Functional Scenario Test Suite
  *  Validates core spec requirements from fada-ethereal.md
  * ═══════════════════════════════════════════════════════════════════
  *
