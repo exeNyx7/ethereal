@@ -3,6 +3,8 @@
  * 
  * Uses separate child processes (with forced exit) to simulate
  * two independent browser tabs communicating through the relay.
+ *
+ * Run:  npm run test:stress
  */
 
 const { execSync } = require('child_process');

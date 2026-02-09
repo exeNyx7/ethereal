@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { AuthModal } from './auth-modal';
+import { AuthModal } from '@/components/auth-modal';
 import '@testing-library/jest-dom';
 
 // Mock User Context

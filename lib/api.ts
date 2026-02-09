@@ -1,5 +1,5 @@
 /**
- * Etherial API Client
+ * Ethereal API Client
  *
  * Clean fetch-based client — no Gun imports whatsoever.
  * All P2P logic lives on the backend.

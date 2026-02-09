@@ -15,7 +15,7 @@
  *    3. Opposition Thresholds
  *    4. Ghost Cascade
  *
- *  Run:  node functional-scenario-test.js
+ *  Run:  npm run test:e2e
  * ═══════════════════════════════════════════════════════════════════
  */
 

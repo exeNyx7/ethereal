@@ -10,7 +10,12 @@
     "start": "node server/index.js",
     "start:next": "next start -p $PORT",
     "start:api": "node server/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "jest",
+    "test:e2e": "node __tests__/e2e/functional-scenario-test.js",
+    "test:stress": "node __tests__/e2e/stress-test.js",
+    "test:p2p": "node __tests__/e2e/test-p2p-sync-script.js",
+    "relay": "node scripts/relay.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

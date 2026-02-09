@@ -5,8 +5,8 @@
  * can discover each other and sync data in real time.
  * 
  * Usage:
- *   node relay.js            (starts on port 8765)
- *   PORT=9999 node relay.js  (custom port)
+ *   npm run relay                (starts on port 8765)
+ *   PORT=9999 node scripts/relay.js  (custom port)
  */
 
 const Gun = require('gun');

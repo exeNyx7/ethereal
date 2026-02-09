@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { RumorCard } from './rumor-card';
+import { RumorCard } from '@/components/rumor-card';
 import '@testing-library/jest-dom';
 
 // Default mock values
